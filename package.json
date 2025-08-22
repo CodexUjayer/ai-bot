@@ -9,15 +9,14 @@
   "author": "Lamgerr",
   "license": "MIT",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "dotenv": "^17.2.1",
-    "express": "^4.18.1",
-    "mineflayer": "^4.3.0",
-    "mineflayer-pathfinder": "^2.1.1",
-    "canvas": "3.2.0",
-    "prismarine-viewer": "^1.33.0",
-    "mineflayer-pvp": "^1.3.0"
-    "mineflayer-armor-manager": "^1.3.0",
-    "mineflayer-pathfinder": "^1.0.10"
+    "express": "^4.18.2",
+    "mineflayer": "^4.15.0",
+    "mineflayer-pathfinder": "^2.4.1",
+    "mineflayer-pvp": "^1.3.0",
+    "mineflayer-armor-manager": "^1.1.0",
+    "prismarine-viewer": "^1.19.0",
+    "@google/generative-ai": "^0.11.4",
+    "dotenv": "^16.3.1"
   }
+
 }
