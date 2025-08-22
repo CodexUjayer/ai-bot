@@ -1,5 +1,5 @@
 const mineflayer = require('mineflayer');
-const { pathfinder, Movements, goals: { GoalBlock, GoalFollow } } = require('mineflayer-pathfinder');
+const { pathfinder, Movements, goals: { GoalBlock } } = require('mineflayer-pathfinder');
 const pvp = require('mineflayer-pvp').plugin;
 const config = require('./settings.json');
 const express = require('express');
@@ -168,22 +168,22 @@ function createBot() {
         }
 
         bot.whisper(username, `🔪 Hunting down ${targetName}...`);
-        bot.pvp.attack(target);
         autoEquipBestGear();
+
+        // Start PvP fight
+        bot.pvp.attack(target);
       }
     }
   });
 
-  // --- PvP Movement + Eating ---
+  // --- Heal/Eat Loop ---
   bot.on('physicTick', () => {
-    if (bot.pvp.target) {
-      const target = bot.pvp.target;
-      if (target && target.position) {
-        bot.pathfinder.setGoal(new GoalFollow(target, 1), true);
-      }
-    }
-
     if (bot.health < 10) eatFood();
+  });
+
+  // --- PvP End Event ---
+  bot.on('stoppedAttacking', () => {
+    console.log(`[PvP] Combat ended.`);
   });
 
   // --- Auto Equip ---
