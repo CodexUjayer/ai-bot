@@ -1,7 +1,6 @@
 const mineflayer = require('mineflayer');
-const Movements = require('mineflayer-pathfinder').Movements;
-const pathfinder = require('mineflayer-pathfinder').pathfinder;
-const { GoalBlock } = require('mineflayer-pathfinder').goals;
+const { pathfinder, Movements, goals: { GoalBlock, GoalFollow } } = require('mineflayer-pathfinder');
+const pvp = require('mineflayer-pvp').plugin;
 const config = require('./settings.json');
 const express = require('express');
 const dotenv = require('dotenv');
@@ -18,8 +17,6 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 // --- Express Setup ---
 const app = express();
 const port = process.env.PORT || 8000;
-
-// Wrap express app into HTTP server
 const server = http.createServer(app);
 
 app.get('/', (req, res) => {
@@ -44,6 +41,8 @@ function createBot() {
   });
 
   bot.loadPlugin(pathfinder);
+  bot.loadPlugin(pvp);
+
   const mcData = require('minecraft-data')(bot.version);
   const defaultMove = new Movements(bot, mcData);
   bot.settings.colorsEnabled = false;
@@ -91,7 +90,6 @@ function createBot() {
   bot.once('spawn', () => {
     console.log('[AfkBot] Bot joined the server');
 
-    // Attach viewer to existing HTTP server
     mineflayerViewer(bot, { httpServer: server, firstPerson: true });
     console.log(`[Viewer] Bot vision available at http://localhost:${port}/viewer`);
 
@@ -117,16 +115,18 @@ function createBot() {
       }
     }
 
-    const pos = config.position;
     if (config.position.enabled) {
       bot.pathfinder.setMovements(defaultMove);
-      bot.pathfinder.setGoal(new GoalBlock(pos.x, pos.y, pos.z));
+      bot.pathfinder.setGoal(new GoalBlock(config.position.x, config.position.y, config.position.z));
     }
 
     if (config.utils['anti-afk'].enabled) {
       bot.setControlState('jump', true);
       if (config.utils['anti-afk'].sneak) bot.setControlState('sneak', true);
     }
+
+    bot.chat("🤖 Gemini ready for battle!");
+    autoEquipBestGear();
   });
 
   // --- AI Chat Handler ---
@@ -137,7 +137,7 @@ function createBot() {
       bot.chat(`⏳ @${username} Thinking...`);
       try {
         const result = await model.generateContent(
-          `You are the AI guide for SoulToken SMP, a survival multiplayer server with economy, shops, PvP zones, and land claims. Only give Minecraft-related answers about SoulToken SMP. Reply in 1-2 sentences. User asked: ${userPrompt}`
+          `You are the AI guide for SoulToken SMP. Only give Minecraft-related answers in 1-2 sentences. User asked: ${userPrompt}`
         );
         let aiResponse = result.response.text();
         if (aiResponse.length > 100) aiResponse = aiResponse.substring(0, 97) + "...";
@@ -149,28 +149,90 @@ function createBot() {
     }
   });
 
-  // --- Events ---
-  bot.on('goal_reached', () =>
-    console.log(`[AfkBot] Reached target: ${bot.entity.position}`)
-  );
+  // --- PvP Command Handler ---
+  bot.on('whisper', (username, message) => {
+    if (username === 'KingSoulified' || username === 'Server') {
+      if (message.startsWith('@gemini-kill')) {
+        const args = message.split(' ');
+        if (args.length < 2) {
+          bot.whisper(username, '⚠️ You must provide a player name!');
+          return;
+        }
 
-  bot.on('death', () =>
-    console.log(`[AfkBot] Died, respawned at: ${bot.entity.position}`)
-  );
+        const targetName = args[1];
+        const target = bot.players[targetName]?.entity;
 
-  if (config.utils['auto-reconnect']) {
-    bot.on('end', () => {
-      setTimeout(() => createBot(), config.utils['auto-recconect-delay']);
-    });
+        if (!target) {
+          bot.whisper(username, `❌ Could not find ${targetName}.`);
+          return;
+        }
+
+        bot.whisper(username, `🔪 Hunting down ${targetName}...`);
+        bot.pvp.attack(target);
+        autoEquipBestGear();
+      }
+    }
+  });
+
+  // --- PvP Movement + Eating ---
+  bot.on('physicTick', () => {
+    if (bot.pvp.target) {
+      const target = bot.pvp.target;
+      if (target && target.position) {
+        bot.pathfinder.setGoal(new GoalFollow(target, 1), true);
+      }
+    }
+
+    if (bot.health < 10) eatFood();
+  });
+
+  // --- Auto Equip ---
+  function autoEquipBestGear() {
+    if (!bot.inventory) return;
+
+    const swords = bot.inventory.items().filter(item => item.name.includes('sword'));
+    if (swords.length > 0) {
+      const bestSword = swords.sort((a, b) => b.attackDamage - a.attackDamage)[0];
+      bot.equip(bestSword, 'hand').catch(() => {});
+    }
+
+    const armorSlots = {
+      head: 'helmet',
+      torso: 'chestplate',
+      legs: 'leggings',
+      feet: 'boots'
+    };
+
+    for (const slot in armorSlots) {
+      const keyword = armorSlots[slot];
+      const items = bot.inventory.items().filter(i => i.name.includes(keyword));
+      if (items.length > 0) {
+        const bestArmor = items.sort((a, b) => b.defense - a.defense)[0];
+        bot.equip(bestArmor, slot).catch(() => {});
+      }
+    }
   }
 
-  bot.on('kicked', (reason) =>
-    console.log(`[AfkBot] Kicked: ${reason}`)
-  );
+  // --- Eat Food ---
+  function eatFood() {
+    const food = bot.inventory.items().find(item =>
+      item.name.includes('apple') || item.name.includes('bread') || item.name.includes('steak')
+    );
+    if (food) {
+      bot.equip(food, 'hand').then(() => bot.consume()).catch(() => {});
+    }
+  }
 
-  bot.on('error', (err) =>
-    console.log(`[ERROR] ${err.message}`)
-  );
+  // --- Events ---
+  bot.on('goal_reached', () => console.log(`[AfkBot] Reached target: ${bot.entity.position}`));
+  bot.on('death', () => console.log(`[AfkBot] Died, respawned at: ${bot.entity.position}`));
+
+  if (config.utils['auto-reconnect']) {
+    bot.on('end', () => setTimeout(() => createBot(), config.utils['auto-recconect-delay']));
+  }
+
+  bot.on('kicked', (reason) => console.log(`[AfkBot] Kicked: ${reason}`));
+  bot.on('error', (err) => console.log(`[ERROR] ${err.message}`));
 }
 
 createBot();
