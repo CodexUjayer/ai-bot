@@ -1,0 +1,48 @@
+{
+  "bot-account": {
+    "username": "CoolGuy23", 
+    "password": "",
+    "type": "mojang"
+  },
+
+  "server": {
+    "ip": "soultoken.aternos.me", 
+    "port": 38863,   
+    "version": "1.12.1"   
+  },
+  
+  "position": {
+    "enabled": false,
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+
+  "utils": {
+    "auto-auth": {
+      "enabled": true,
+      "password": "imabot"
+    },
+
+    "anti-afk": {
+      "enabled": true,
+      "sneak": true
+    },
+
+    "chat-messages": {
+      "enabled": false,
+      "repeat": true,
+      "repeat-delay": 60,
+
+      "messages": [
+        "Yo guys",
+        "I'm new",
+        "Join discord"
+      ]
+    },
+
+    "chat-log": true,
+    "auto-reconnect": true,
+    "auto-recconect-delay": 5000
+  }
+}
