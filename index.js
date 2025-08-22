@@ -71,7 +71,7 @@ function createBot() {
     if (guardPos) moveToGuardPos();
   });
 
-  bot.on('physicTick', () => {
+  bot.on('physicsTick', () => {
     if (bot.pvp.target) return;
     if (bot.pathfinder.isMoving()) return;
 
@@ -79,7 +79,7 @@ function createBot() {
     if (entity) bot.lookAt(entity.position.offset(0, entity.height, 0));
   });
 
-  bot.on('physicTick', () => {
+  bot.on('physicsTick', () => {
     if (!guardPos) return;
 
     const filter = e => e.type === 'mob' && e.position.distanceTo(bot.entity.position) < 16 &&
