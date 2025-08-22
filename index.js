@@ -1,6 +1,7 @@
 const mineflayer = require('mineflayer');
 const { pathfinder, Movements, goals: { GoalBlock } } = require('mineflayer-pathfinder');
 const pvp = require('mineflayer-pvp').plugin;
+const armorManager = require('mineflayer-armor-manager');
 const config = require('./settings.json');
 const express = require('express');
 const dotenv = require('dotenv');
@@ -42,49 +43,51 @@ function createBot() {
 
   bot.loadPlugin(pathfinder);
   bot.loadPlugin(pvp);
+  bot.loadPlugin(armorManager);
 
   const mcData = require('minecraft-data')(bot.version);
   const defaultMove = new Movements(bot, mcData);
   bot.settings.colorsEnabled = false;
 
-  let pendingPromise = Promise.resolve();
+  let guardPos = null;
 
-  // --- Auth functions ---
-  function sendRegister(password) {
-    return new Promise((resolve, reject) => {
-      bot.chat(`/register ${password} ${password}`);
-      console.log(`[Auth] Sent /register`);
-      const listener = (msg) => {
-        const message = msg.toString();
-        if (message.includes('successfully registered') || message.includes('already registered')) {
-          bot.removeListener('messagestr', listener);
-          resolve();
-        } else if (message.includes('Invalid command')) {
-          bot.removeListener('messagestr', listener);
-          reject(`Registration failed. Msg: ${message}`);
-        }
-      };
-      bot.on('messagestr', listener);
-    });
+  // --- Guard Functions ---
+  function guardArea(pos) {
+    guardPos = pos.clone();
+    if (!bot.pvp.target) moveToGuardPos();
   }
 
-  function sendLogin(password) {
-    return new Promise((resolve, reject) => {
-      bot.chat(`/login ${password}`);
-      console.log(`[Auth] Sent /login`);
-      const listener = (msg) => {
-        const message = msg.toString();
-        if (message.includes('successfully logged in')) {
-          bot.removeListener('messagestr', listener);
-          resolve();
-        } else if (message.includes('Invalid password') || message.includes('not registered')) {
-          bot.removeListener('messagestr', listener);
-          reject(`Login failed. Msg: ${message}`);
-        }
-      };
-      bot.on('messagestr', listener);
-    });
+  function stopGuarding() {
+    guardPos = null;
+    bot.pvp.stop();
+    bot.pathfinder.setGoal(null);
   }
+
+  function moveToGuardPos() {
+    bot.pathfinder.setMovements(new Movements(bot, mcData));
+    bot.pathfinder.setGoal(new GoalBlock(guardPos.x, guardPos.y, guardPos.z));
+  }
+
+  bot.on('stoppedAttacking', () => {
+    if (guardPos) moveToGuardPos();
+  });
+
+  bot.on('physicTick', () => {
+    if (bot.pvp.target) return;
+    if (bot.pathfinder.isMoving()) return;
+
+    const entity = bot.nearestEntity();
+    if (entity) bot.lookAt(entity.position.offset(0, entity.height, 0));
+  });
+
+  bot.on('physicTick', () => {
+    if (!guardPos) return;
+
+    const filter = e => e.type === 'mob' && e.position.distanceTo(bot.entity.position) < 16 &&
+      e.mobType !== 'Armor Stand';
+    const entity = bot.nearestEntity(filter);
+    if (entity) bot.pvp.attack(entity);
+  });
 
   // --- Spawn handler ---
   bot.once('spawn', () => {
@@ -95,10 +98,8 @@ function createBot() {
 
     if (config.utils['auto-auth'].enabled) {
       const password = config.utils['auto-auth'].password;
-      pendingPromise = pendingPromise
-        .then(() => sendRegister(password))
-        .then(() => sendLogin(password))
-        .catch(error => console.error('[ERROR]', error));
+      bot.chat(`/register ${password} ${password}`);
+      setTimeout(() => bot.chat(`/login ${password}`), 2000);
     }
 
     if (config.utils['chat-messages'].enabled) {
@@ -152,7 +153,7 @@ function createBot() {
   // --- PvP Command Handler ---
   bot.on('whisper', (username, message) => {
     if (username === 'KingSoulified' || username === 'Server') {
-      if (message.startsWith('@gemini-kill')) {
+      if (message.startsWith('@fight')) {
         const args = message.split(' ');
         if (args.length < 2) {
           bot.whisper(username, '⚠️ You must provide a player name!');
@@ -167,10 +168,8 @@ function createBot() {
           return;
         }
 
-        bot.whisper(username, `🔪 Hunting down ${targetName}...`);
+        bot.whisper(username, `⚔️ Fighting ${targetName}...`);
         autoEquipBestGear();
-
-        // Start PvP fight
         bot.pvp.attack(target);
       }
     }
@@ -179,11 +178,6 @@ function createBot() {
   // --- Heal/Eat Loop ---
   bot.on('physicTick', () => {
     if (bot.health < 10) eatFood();
-  });
-
-  // --- PvP End Event ---
-  bot.on('stoppedAttacking', () => {
-    console.log(`[PvP] Combat ended.`);
   });
 
   // --- Auto Equip ---
@@ -226,6 +220,7 @@ function createBot() {
   // --- Events ---
   bot.on('goal_reached', () => console.log(`[AfkBot] Reached target: ${bot.entity.position}`));
   bot.on('death', () => console.log(`[AfkBot] Died, respawned at: ${bot.entity.position}`));
+  bot.on('stoppedAttacking', () => console.log(`[PvP] Combat ended.`));
 
   if (config.utils['auto-reconnect']) {
     bot.on('end', () => setTimeout(() => createBot(), config.utils['auto-recconect-delay']));
