@@ -1,16 +1,16 @@
 {
   "bot-account": {
-    "username": "CoolGuy23", 
+    "username": "CoolGuy27",
     "password": "",
     "type": "mojang"
   },
 
   "server": {
-    "ip": "soultoken.aternos.me", 
-    "port": 38863,   
-    "version": "1.12.1"   
+    "ip": "soultoken.aternos.me",
+    "port": 38863,
+    "version": "1.12.1"
   },
-  
+
   "position": {
     "enabled": false,
     "x": 0,
@@ -33,7 +33,6 @@
       "enabled": false,
       "repeat": true,
       "repeat-delay": 60,
-
       "messages": [
         "Yo guys",
         "I'm new",
@@ -43,6 +42,11 @@
 
     "chat-log": true,
     "auto-reconnect": true,
-    "auto-recconect-delay": 5000
+    "auto-recconect-delay": 5000,
+
+    "gemini-ai": {
+      "enabled": true,
+      "personality": "friendly helper"
+    }
   }
 }
