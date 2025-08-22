@@ -5,6 +5,7 @@ const { GoalBlock } = require('mineflayer-pathfinder').goals;
 const config = require('./settings.json');
 const express = require('express');
 const dotenv = require('dotenv');
+const http = require('http');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { mineflayer: mineflayerViewer } = require('prismarine-viewer');
 
@@ -18,6 +19,9 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 const app = express();
 const port = process.env.PORT || 8000;
 
+// Wrap express app into HTTP server
+const server = http.createServer(app);
+
 app.get('/', (req, res) => {
   res.send(`
     <h1>🤖 SoulToken SMP Bot Dashboard</h1>
@@ -26,7 +30,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-app.listen(port, () => console.log(`[Dashboard] Running on port ${port}`));
+server.listen(port, () => console.log(`[Dashboard] Running on port ${port}`));
 
 // --- Bot Creation ---
 function createBot() {
@@ -87,8 +91,8 @@ function createBot() {
   bot.once('spawn', () => {
     console.log('[AfkBot] Bot joined the server');
 
-    // Attach viewer to existing Express app
-    mineflayerViewer(bot, { httpServer: app, firstPerson: true });
+    // Attach viewer to existing HTTP server
+    mineflayerViewer(bot, { httpServer: server, firstPerson: true });
     console.log(`[Viewer] Bot vision available at http://localhost:${port}/viewer`);
 
     if (config.utils['auto-auth'].enabled) {
