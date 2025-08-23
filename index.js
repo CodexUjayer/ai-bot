@@ -48,46 +48,6 @@ function createBot() {
   const mcData = require('minecraft-data')(bot.version);
   const defaultMove = new Movements(bot, mcData);
 
-  let guardPos = null;
-
-  // --- Guard Functions ---
-  function guardArea(pos) {
-    guardPos = pos.clone();
-    if (!bot.pvp.target) moveToGuardPos();
-  }
-
-  function stopGuarding() {
-    guardPos = null;
-    bot.pvp.stop();
-    bot.pathfinder.setGoal(null);
-  }
-
-  function moveToGuardPos() {
-    bot.pathfinder.setMovements(new Movements(bot, mcData));
-    bot.pathfinder.setGoal(new GoalBlock(guardPos.x, guardPos.y, guardPos.z));
-  }
-
-  bot.on('stoppedAttacking', () => {
-    if (guardPos) moveToGuardPos();
-  });
-
-  bot.on('physicsTick', () => {
-    if (bot.pvp.target) return;
-    if (bot.pathfinder.isMoving()) return;
-
-    const entity = bot.nearestEntity();
-    if (entity) bot.lookAt(entity.position.offset(0, entity.height, 0));
-  });
-
-  bot.on('physicsTick', () => {
-    if (!guardPos) return;
-
-    const filter = e => e.type === 'mob' && e.position.distanceTo(bot.entity.position) < 16 &&
-      e.mobType !== 'Armor Stand';
-    const entity = bot.nearestEntity(filter);
-    if (entity) bot.pvp.attack(entity);
-  });
-
   // --- Spawn handler ---
   bot.once('spawn', () => {
     console.log('[AfkBot] Bot joined the server');
@@ -95,12 +55,14 @@ function createBot() {
     mineflayerViewer(bot, { httpServer: server, firstPerson: true });
     console.log(`[Viewer] Bot vision available at http://localhost:${port}/viewer`);
 
+    // Auto-auth
     if (config.utils['auto-auth'].enabled) {
       const password = config.utils['auto-auth'].password;
       bot.chat(`/register ${password} ${password}`);
       setTimeout(() => bot.chat(`/login ${password}`), 2000);
     }
 
+    // Auto chat messages
     if (config.utils['chat-messages'].enabled) {
       const messages = config.utils['chat-messages']['messages'];
       if (config.utils['chat-messages'].repeat) {
@@ -115,13 +77,22 @@ function createBot() {
       }
     }
 
+    // Move to set position
     if (config.position.enabled) {
       bot.pathfinder.setMovements(defaultMove);
       bot.pathfinder.setGoal(new GoalBlock(config.position.x, config.position.y, config.position.z));
     }
 
+    // Anti-AFK wandering
     if (config.utils['anti-afk'].enabled) {
-      bot.setControlState('jump', true);
+      setInterval(() => {
+        const x = bot.entity.position.x + (Math.random() * 10 - 5);
+        const z = bot.entity.position.z + (Math.random() * 10 - 5);
+        const y = bot.entity.position.y;
+        bot.pathfinder.setMovements(defaultMove);
+        bot.pathfinder.setGoal(new GoalBlock(Math.floor(x), Math.floor(y), Math.floor(z)));
+      }, 15000); // wander every 15s
+
       if (config.utils['anti-afk'].sneak) bot.setControlState('sneak', true);
     }
 
@@ -129,7 +100,7 @@ function createBot() {
     autoEquipBestGear();
   });
 
-  // --- Unified Gemini Handler (Chat + Whisper) ---
+  // --- Unified Gemini Handler ---
   async function handleGemini(username, message, whisper = false) {
     if (username === bot.username) return;
     if (!message.toLowerCase().startsWith('@gemini')) return;
