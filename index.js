@@ -7,7 +7,6 @@ const express = require('express');
 const dotenv = require('dotenv');
 const http = require('http');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { mineflayer: mineflayerViewer } = require('prismarine-viewer');
 
 dotenv.config();
 
@@ -24,7 +23,6 @@ app.get('/', (req, res) => {
   res.send(`
     <h1>🤖 SoulToken SMP Bot Dashboard</h1>
     <p>Status: Running</p>
-    <p><a href="/viewer" target="_blank">👀 View Bot Vision</a></p>
   `);
 });
 
@@ -51,9 +49,6 @@ function createBot() {
   // --- Spawn handler ---
   bot.once('spawn', () => {
     console.log('[AfkBot] Bot joined the server');
-
-    mineflayerViewer(bot, { httpServer: server, firstPerson: true });
-    console.log(`[Viewer] Bot vision available at http://localhost:${port}/viewer`);
 
     // Auto-auth
     if (config.utils['auto-auth'].enabled) {
