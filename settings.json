@@ -2,7 +2,7 @@
   "bot-account": {
     "username": "Gemini",
     "password": "",
-    "type": "microsoft"
+    "type": "offline"
   },
 
   "server": {
