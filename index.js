@@ -129,53 +129,62 @@ function createBot() {
     autoEquipBestGear();
   });
 
-  // --- AI Chat Handler ---
-  bot.on('chat', async (username, message) => {
+  // --- Unified Gemini Handler (Chat + Whisper) ---
+  async function handleGemini(username, message, whisper = false) {
     if (username === bot.username) return;
-    if (message.toLowerCase().startsWith('@gemini')) {
-      const userPrompt = message.replace(/^@gemini\s*/i, '');
-      bot.chat(`⏳ @${username} Thinking...`);
-      try {
-        const result = await model.generateContent(
-          `You are the AI guide for SoulToken SMP. Only give Minecraft-related answers in 1-2 sentences. User asked: ${userPrompt}`
-        );
-        let aiResponse = result.response.text();
-        if (aiResponse.length > 100) aiResponse = aiResponse.substring(0, 97) + "...";
-        bot.chat(`@${username} ${aiResponse}`);
-      } catch (err) {
-        console.error('[AI ERROR]', err);
-        bot.chat(`@${username} ❌ AI error, try later.`);
-      }
+    if (!message.toLowerCase().startsWith('@gemini')) return;
+
+    const userPrompt = message.replace(/^@gemini\s*/i, '');
+    const reply = (text) => {
+      if (whisper) bot.whisper(username, text);
+      else bot.chat(text);
+    };
+
+    reply(`⏳ @${username} Thinking...`);
+
+    try {
+      const result = await model.generateContent(
+        `You are the AI guide for SoulToken SMP. Only give Minecraft-related answers in 1-2 sentences. User asked: ${userPrompt}`
+      );
+
+      let aiResponse = result.response.text();
+      if (aiResponse.length > 100) aiResponse = aiResponse.substring(0, 97) + "...";
+
+      reply(`@${username} ${aiResponse}`);
+    } catch (err) {
+      console.error('[AI ERROR]', err);
+      reply(`@${username} ❌ AI error, try later.`);
     }
-  });
+  }
 
-  // --- PvP Command Handler ---
+  bot.on('chat', (username, message) => handleGemini(username, message, false));
   bot.on('whisper', (username, message) => {
-    if (username === 'KingSoulified' || username === 'Server') {
-      if (message.startsWith('@fight')) {
-        const args = message.split(' ');
-        if (args.length < 2) {
-          bot.whisper(username, '⚠️ You must provide a player name!');
-          return;
-        }
+    handleGemini(username, message, true);
 
-        const targetName = args[1];
-        const target = bot.players[targetName]?.entity;
-
-        if (!target) {
-          bot.whisper(username, `❌ Could not find ${targetName}.`);
-          return;
-        }
-
-        bot.whisper(username, `⚔️ Fighting ${targetName}...`);
-        autoEquipBestGear();
-        bot.pvp.attack(target);
+    // PvP Whisper Command
+    if ((username === 'KingSoulified' || username === 'Server') && message.startsWith('@fight')) {
+      const args = message.split(' ');
+      if (args.length < 2) {
+        bot.whisper(username, '⚠️ You must provide a player name!');
+        return;
       }
+
+      const targetName = args[1];
+      const target = bot.players[targetName]?.entity;
+
+      if (!target) {
+        bot.whisper(username, `❌ Could not find ${targetName}.`);
+        return;
+      }
+
+      bot.whisper(username, `⚔️ Fighting ${targetName}...`);
+      autoEquipBestGear();
+      bot.pvp.attack(target);
     }
   });
 
   // --- Heal/Eat Loop ---
-  bot.on('physicTick', () => {
+  bot.on('physicsTick', () => {
     if (bot.health < 10) eatFood();
   });
 
